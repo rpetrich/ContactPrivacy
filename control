@@ -1,9 +1,14 @@
 Package: com.rpetrich.contactprivacy
 Priority: optional
-Section: System
+Section: Tweaks
+Maintainer: thebigboss.org <http://thebigboss.org>
 Architecture: iphoneos-arm
-Version: 0.1
+Version: 1.0
 Description: Prompts when apps want access to your contacts database. Inspired by Path
 Name: ContactPrivacy
-Depends: firmware (>= 5.0), mobilesubstrate
+Depends: firmware (>= 4.0), mobilesubstrate
 Author: Ryan Petrich <rpetrich+contactprivacy@gmail.com>
+Tag: purpose::extension
+Homepage: http://moreinfo.thebigboss.org/moreinfo/depiction.php?file=contactprivacyDp
+Depiction: http://moreinfo.thebigboss.org/moreinfo/depiction.php?file=contactprivacyDp
+dev: rpetrich
