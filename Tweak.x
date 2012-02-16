@@ -543,7 +543,7 @@ MSHook(CFTypeRef, ABCDBContextRecordForUIDOfType, void *context, void *uid, void
 			HOOK(ABCCopyArrayOfAllPeopleWithSortOrderingShowingPersonLinks);
 			HOOK(ABCCopyArrayOfPeopleInSourceAtOffset);
 			HOOK(ABCCopyArrayOfPeopleShowingLinksAtOffset);
-			HOOK(ABCDBContextRecordForUIDOfType);
+//			HOOK(ABCDBContextRecordForUIDOfType);
 		}
 		[pool drain];
 	}
