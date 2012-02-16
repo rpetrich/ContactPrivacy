@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <AddressBook/AddressBook.h>
+#import <AppSupport/AppSupport.h>
 #include <substrate.h>
 #include <pthread.h>
 
@@ -41,6 +42,7 @@ static AddressBookPermittedStatus status;
 static CFErrorRef blockedError;
 static CFArrayRef emptyArray;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static CPDistributedMessagingCenter *center;
 
 static bool IsAllowed()
 {
@@ -48,20 +50,32 @@ static bool IsAllowed()
 		pthread_mutex_lock(&mutex);
 		if (status == AddressBookPermittedStatusUnknown) {
 			CFBundleRef mainBundle = CFBundleGetMainBundle();
-			CFStringRef displayName = CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleDisplayName")) ?: CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleName")) ?: CFSTR("Unknown");
-			CFStringRef title = CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("“%@” Would Like To Access Your Contacts"), displayName);
-			CFOptionFlags alertResult = kCFUserNotificationDefaultResponse;
-			CFUserNotificationDisplayAlert(0.0, kCFUserNotificationNoteAlertLevel, NULL, NULL, NULL, title, CFSTR("Not all apps recover successfully from having their Contacts access revoked."), CFSTR("OK"), CFSTR("Don't Allow"), NULL, &alertResult);
-			CFRelease(title);
-			switch (alertResult) {
-				case kCFUserNotificationAlternateResponse:
-					status = AddressBookPermittedStatusNo;
-					break;
-				case kCFUserNotificationDefaultResponse:
-					status = AddressBookPermittedStatusYes;
-					break;
-				default:
-					break;
+			CFStringRef identifier = CFBundleGetIdentifier(mainBundle);
+			NSString *key = [NSString stringWithFormat:@"CPAllowed-%@", identifier];
+			id value = [[center sendMessageAndReceiveReplyName:@"get" userInfo:[NSDictionary dictionaryWithObject:key forKey:@"key"]] objectForKey:@"value"];
+			if (value) {
+				status = [value boolValue] ? AddressBookPermittedStatusYes : AddressBookPermittedStatusNo;
+			} else {
+				CFStringRef displayName = CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleDisplayName")) ?: CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleName")) ?: CFSTR("Unknown");
+				CFStringRef title = CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("“%@” Would Like To Access Your Contacts"), displayName);
+				CFOptionFlags alertResult = kCFUserNotificationDefaultResponse;
+				CFUserNotificationDisplayAlert(0.0, kCFUserNotificationNoteAlertLevel, NULL, NULL, NULL, title, CFSTR("Not all apps recover successfully from having their Contacts access revoked."), CFSTR("OK"), CFSTR("Don't Allow"), NULL, &alertResult);
+				CFRelease(title);
+				switch (alertResult) {
+					case kCFUserNotificationAlternateResponse:
+						status = AddressBookPermittedStatusNo;
+						break;
+					case kCFUserNotificationDefaultResponse:
+						status = AddressBookPermittedStatusYes;
+						break;
+					default:
+						break;
+				}
+				NSDictionary *userInfo = [NSDictionary dictionaryWithObjectsAndKeys:
+					key, @"key",
+					(status == AddressBookPermittedStatusYes) ? (id)kCFBooleanTrue : (id)kCFBooleanFalse, @"value",
+					nil];
+				[center sendMessageName:@"set" userInfo:userInfo];
 			}
 		}
 		pthread_mutex_unlock(&mutex);
@@ -486,13 +500,61 @@ MSHook(CFTypeRef, ABCDBContextRecordForUIDOfType, void *context, void *uid, void
 	return NULL;
 }
 
+#define kSettingsPath @"/var/mobile/Library/Preferences/com.rpetrich.contactprivacy.plist"
+static NSMutableDictionary *settings;
+
+__attribute__((visibility("hidden")))
+@interface ContactPrivacySpringBoardHandler : NSObject
+@end
+
+@implementation ContactPrivacySpringBoardHandler
+
++ (NSDictionary *)settings
+{
+	return [[settings copy] autorelease];
+}
+
+- (NSDictionary *)getValueForMessage:(NSString *)message userInfo:(NSDictionary *)userInfo
+{
+	id result = [settings objectForKey:[userInfo objectForKey:@"key"]];
+	return result ? [NSDictionary dictionaryWithObject:result forKey:@"value"] : [NSDictionary dictionary];
+}
+
+- (void)setValueForMessage:(NSString *)message userInfo:(NSDictionary *)userInfo
+{
+	id key = [userInfo objectForKey:@"key"];
+	if (key) {
+		id value = [userInfo objectForKey:@"value"];
+		if (value)
+			[settings setObject:value forKey:key];
+		else
+			[settings removeObjectForKey:key];
+		NSData *data = [NSPropertyListSerialization dataFromPropertyList:settings format:NSPropertyListBinaryFormat_v1_0 errorDescription:nil];
+		[data writeToFile:kSettingsPath atomically:YES];
+	}
+}
+
+@end 
+
+static void LoadSettings()
+{
+	[settings release];
+	settings = [[NSMutableDictionary alloc] initWithContentsOfFile:kSettingsPath] ?: [[NSMutableDictionary alloc] init];
+}
 
 #define HOOK(name) MSHookFunction(&name, $##name, (void **)&_##name)
 
 %ctor {
+	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+	center = [[CPDistributedMessagingCenter centerNamed:@"com.rpetrich.contacrprivacy.springboard"] retain];
 	if (dlopen("/System/Library/CoreServices/SpringBoard.app/SpringBoard", RTLD_NOLOAD)) {
+		[center runServerOnCurrentThread];
+		ContactPrivacySpringBoardHandler *sbh = [[ContactPrivacySpringBoardHandler alloc] init];
+		[center registerForMessageName:@"get" target:sbh selector:@selector(getValueForMessage:userInfo:)];
+		[center registerForMessageName:@"set" target:sbh selector:@selector(setValueForMessage:userInfo:)];
+		CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)LoadSettings, CFSTR("com.rpetrich.contactprivacy.settingschanged"), NULL, CFNotificationSuspensionBehaviorCoalesce);
+		LoadSettings();
 	} else {
-		NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 		if ([[[NSBundle mainBundle] bundlePath] hasPrefix:@"/var/mobile/Applications/"]) {
 			blockedError = CFErrorCreate(kCFAllocatorDefault, CFSTR("com.rpetrich.contactprivacy"), 0, NULL);
 			const void *value = NULL;
@@ -545,6 +607,6 @@ MSHook(CFTypeRef, ABCDBContextRecordForUIDOfType, void *context, void *uid, void
 			HOOK(ABCCopyArrayOfPeopleShowingLinksAtOffset);
 //			HOOK(ABCDBContextRecordForUIDOfType);
 		}
-		[pool drain];
 	}
+	[pool drain];
 }

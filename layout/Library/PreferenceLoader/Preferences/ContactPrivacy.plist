@@ -1,0 +1,23 @@
+entry = {
+  bundle = AppList;
+  cell = PSLinkCell;
+  icon = "/Applications/Contacts~iphone.app/Icon-Small.png";
+  isController = 1;
+  label = ContactPrivacy;
+  ALSettingsPath = "/var/mobile/Library/Preferences/com.rpetrich.contactprivacy.plist";
+  ALSettingsKeyPrefix = "CPAllowed-";
+  ALChangeNotification = "com.rpetrich.contactprivacy.settingschanged";
+  ALSectionDescriptors = (
+  	{
+  	  items = ();
+  	  "footer-title" = "Not all apps recover successfully from having their Contacts access revoked.\n\nKill app from multitasking switcher and relaunch for settings to take effect.\n\nOn to enable access to contacts.\nOff to block access to contacts.";
+  	},
+  	{
+  	  predicate = "isSystemApplication = FALSE";
+  	  "cell-class-name" = "ALSwitchCell";
+  	  "icon-size" = 29;
+  	  "suppress-hidden-apps" = 1;
+  	  "footer-title" = "© 2012 Ryan Petrich";
+  	}
+  );
+};

@@ -1,6 +1,7 @@
 TWEAK_NAME = ContactPrivacy
 ContactPrivacy_FILES = Tweak.x
 ContactPrivacy_FRAMEWORKS = Foundation CoreFoundation AddressBook
+ContactPrivacy_PRIVATE_FRAMEWORKS = AppSupport
 ContactPrivacy_LDFLAGS = -lsubstrate
 
 ADDITIONAL_CFLAGS = -std=c99
