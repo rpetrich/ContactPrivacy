@@ -476,6 +476,17 @@ MSHook(CFArrayRef, ABCCopyArrayOfPeopleShowingLinksAtOffset, ABRecordRef source,
 	return (CFArrayRef)CFRetain(emptyArray);
 }
 
+extern CFTypeRef ABCDBContextRecordForUIDOfType(void *context, void *uid, void *type);
+
+MSHook(CFTypeRef, ABCDBContextRecordForUIDOfType, void *context, void *uid, void *type)
+{
+	NSLog(@"ContactPrivacy: ABCDBContextRecordForUIDOfType");
+	if (IsAllowed())
+		return _ABCDBContextRecordForUIDOfType(context, uid, type);
+	return NULL;
+}
+
+
 #define HOOK(name) MSHookFunction(&name, $##name, (void **)&_##name)
 
 %ctor {
@@ -497,7 +508,7 @@ MSHook(CFArrayRef, ABCCopyArrayOfPeopleShowingLinksAtOffset, ABRecordRef source,
 			//HOOK(ABAddressBookCopyArrayOfAllGroups); // Actually implemented by ABCCopyArrayOfAllGroups
 			//HOOK(ABAddressBookCopyArrayOfAllGroupsInSource); // Actually implemented by ABCCopyArrayOfAllGroupsInSource
 			//HOOK(ABAddressBookGetGroupCount); // Actually implemented by ABCGetGroupCount
-			HOOK(ABAddressBookGetGroupWithRecordID);
+			//HOOK(ABAddressBookGetGroupWithRecordID); // Actually implemented by ABCGroupGetRecordForUniqueID
 			//HOOK(ABAddressBookCopyArrayOfAllPeople); // Actually implemented by ABCCopyArrayOfAllPeople
 			//HOOK(ABAddressBookCopyArrayOfAllPeopleInSource); // Actually implemented by ABCCopyArrayOfAllPeopleInSource
 			//HOOK(ABAddressBookCopyArrayOfAllPeopleInSourceWithSortOrdering); // Actually implemented by ABCCopyArrayOfAllPeopleInSourceWithSortOrdering
@@ -505,7 +516,7 @@ MSHook(CFArrayRef, ABCCopyArrayOfPeopleShowingLinksAtOffset, ABRecordRef source,
 			//HOOK(ABAddressBookGetPersonCount); // Actually implemented by ABCGetPersonCountInSourceShowingLinks
 			//HOOK(ABAddressBookGetPersonWithRecordID); // Actually implemented by ABCPersonGetRecordForUniqueID
 			//HOOK(ABAddressBookCopyArrayOfAllSources); // Actually implemented by ABCSourceCopyArrayOfAllSourcesIncludingDisabledSources
-			HOOK(ABAddressBookCopyDefaultSource);
+			//HOOK(ABAddressBookCopyDefaultSource); // Not certain where is actually implemented, causes crash in WhatsApp
 			//HOOK(ABAddressBookGetSourceWithRecordID); // Actually implemented by ABCSourceGetRecordForUniqueID
 			//HOOK(ABGroupAddMember);
 			//HOOK(ABGroupRemoveMember);
@@ -532,6 +543,7 @@ MSHook(CFArrayRef, ABCCopyArrayOfPeopleShowingLinksAtOffset, ABRecordRef source,
 			HOOK(ABCCopyArrayOfAllPeopleWithSortOrderingShowingPersonLinks);
 			HOOK(ABCCopyArrayOfPeopleInSourceAtOffset);
 			HOOK(ABCCopyArrayOfPeopleShowingLinksAtOffset);
+			HOOK(ABCDBContextRecordForUIDOfType);
 		}
 		[pool drain];
 	}
