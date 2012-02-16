@@ -3,7 +3,7 @@ Priority: optional
 Section: Tweaks
 Maintainer: thebigboss.org <http://thebigboss.org>
 Architecture: iphoneos-arm
-Version: 1.0
+Version: 1.1
 Description: Prompts when apps want access to your contacts database. Inspired by Path
 Name: ContactPrivacy
 Depends: firmware (>= 4.0), mobilesubstrate, applist (>= 1.4.2), preferenceloader
