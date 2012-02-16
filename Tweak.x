@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <AddressBook/AddressBook.h>
 #include <substrate.h>
+#include <pthread.h>
 
 enum {
    kCFUserNotificationStopAlertLevel = 0,
@@ -39,26 +40,31 @@ typedef enum {
 static AddressBookPermittedStatus status;
 static CFErrorRef blockedError;
 static CFArrayRef emptyArray;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static bool IsAllowed()
 {
 	if (status == AddressBookPermittedStatusUnknown) {
-		CFBundleRef mainBundle = CFBundleGetMainBundle();
-		CFStringRef displayName = CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleDisplayName")) ?: CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleName")) ?: CFSTR("Unknown");
-		CFStringRef title = CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("“%@” Would Like To Access Your Contacts"), displayName);
-		CFOptionFlags alertResult = kCFUserNotificationDefaultResponse;
-		CFUserNotificationDisplayAlert(0.0, kCFUserNotificationNoteAlertLevel, NULL, NULL, NULL, title, CFSTR("Not all apps recover successfully from having their Contacts access revoked."), CFSTR("OK"), CFSTR("Don't Allow"), NULL, &alertResult);
-		CFRelease(title);
-		switch (alertResult) {
-			case kCFUserNotificationAlternateResponse:
-				status = AddressBookPermittedStatusNo;
-				break;
-			case kCFUserNotificationDefaultResponse:
-				status = AddressBookPermittedStatusYes;
-				break;
-			default:
-				break;
+		pthread_mutex_lock(&mutex);
+		if (status == AddressBookPermittedStatusUnknown) {
+			CFBundleRef mainBundle = CFBundleGetMainBundle();
+			CFStringRef displayName = CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleDisplayName")) ?: CFBundleGetValueForInfoDictionaryKey(mainBundle, CFSTR("CFBundleName")) ?: CFSTR("Unknown");
+			CFStringRef title = CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("“%@” Would Like To Access Your Contacts"), displayName);
+			CFOptionFlags alertResult = kCFUserNotificationDefaultResponse;
+			CFUserNotificationDisplayAlert(0.0, kCFUserNotificationNoteAlertLevel, NULL, NULL, NULL, title, CFSTR("Not all apps recover successfully from having their Contacts access revoked."), CFSTR("OK"), CFSTR("Don't Allow"), NULL, &alertResult);
+			CFRelease(title);
+			switch (alertResult) {
+				case kCFUserNotificationAlternateResponse:
+					status = AddressBookPermittedStatusNo;
+					break;
+				case kCFUserNotificationDefaultResponse:
+					status = AddressBookPermittedStatusYes;
+					break;
+				default:
+					break;
+			}
 		}
+		pthread_mutex_unlock(&mutex);
 	}
 	return status == AddressBookPermittedStatusYes;
 }
